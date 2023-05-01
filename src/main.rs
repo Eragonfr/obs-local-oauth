@@ -7,14 +7,10 @@ use std::{collections::HashMap, env::var};
 
 use lazy_static::lazy_static;
 use oauth2::{
-    basic::BasicClient, AuthUrl, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, Scope,
-    TokenUrl,
+    basic::BasicClient, AuthUrl, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, RedirectUrl,
+    Scope, TokenUrl,
 };
-use warp::{
-    http::StatusCode,
-    redirect,
-    Filter, Reply,
-};
+use warp::{http::StatusCode, redirect, Filter, Reply};
 
 const BLANK_PAGE: &str = "This is an open field west of a white house, with a boarded front door.
 There is a small mailbox here.
@@ -25,6 +21,10 @@ const TWITCH_AUTH_URL: &str = "https://id.twitch.tv/oauth2/authorize";
 const TWITCH_TOKEN_URL: &str = "https://id.twitch.tv/oauth2/token";
 
 lazy_static! {
+    static ref TWITCH_CLIENT_ID: String = match var("TWITCH_CLIENT_ID") {
+        Ok(t) => t,
+        Err(_) => panic!("TWITCH_CLIENT_ID not found in current env."),
+    };
     static ref TWITCH_SECRET: String = match var("TWITCH_SECRET") {
         Ok(t) => t,
         Err(_) => panic!("TWITCH_SECRET variable not found in current env."),
@@ -41,16 +41,15 @@ async fn main() {
     elog::init_timed();
 
     let root = warp::any().map(|| warp::reply::html(BLANK_PAGE));
-    let v1 = warp::path!("v1");
-    let redirect = v1.and(warp::path!(String / "redirect")).map(get_redirect);
-    let finalise = v1
-        .and(warp::path!(String / "finalise"))
-        .map(|_| warp::reply::html(OAUTH_COMPLETE));
-    let token = v1
-        .and(warp::post())
+    let redirect = warp::path("v1")
+        .and(warp::path("twitch"))
+        .and(warp::path("redirect"))
+        .map(get_redirect);
+    let finalise =
+        warp::path!("v1" / "twitch" / "finalise").map(|| warp::reply::html(OAUTH_COMPLETE));
+    let token = warp::post()
         .and(warp::body::json())
-        .and(warp::body::content_length_limit(1024 * 32))
-        .and(warp::path!(String / "token"))
+        .and(warp::path!("v1" / "twitch" / "token"))
         .map(get_token);
 
     let routes = redirect.or(finalise).or(token).or(root);
@@ -58,35 +57,32 @@ async fn main() {
     warp::serve(routes).run(([127, 0, 0, 1], 4433)).await;
 }
 
-fn get_redirect(_: String) -> impl Reply {
+fn get_redirect() -> impl Reply {
     let client = BasicClient::new(
-        ClientId::new("TWITCH_ID".to_string()),
+        ClientId::new(TWITCH_CLIENT_ID.to_string()),
         Some(ClientSecret::new(TWITCH_SECRET.to_string())),
         AuthUrl::new(TWITCH_AUTH_URL.to_string()).unwrap(),
         Some(TokenUrl::new(TWITCH_TOKEN_URL.to_string()).unwrap()),
-    );
+    )
+    .set_redirect_uri(RedirectUrl::new(TWITCH_REDIRECT_URL.to_string()).unwrap());
 
     let (pkce_challenge, _pkce_verifier) = PkceCodeChallenge::new_random_sha256();
 
     let (auth_url, _csrf_token) = client
         .authorize_url(CsrfToken::new_random)
         // Set the desired scopes.
-        .add_scope(Scope::new("chanel".to_string()))
-        .add_scope(Scope::new("read".to_string()))
-        .add_scope(Scope::new("stream_key".to_string()))
+        .add_scope(Scope::new("channel:read:stream_key".to_string()))
         // Set the PKCE code challenge.
         .set_pkce_challenge(pkce_challenge)
         .url();
 
     let auth_url_string: String = auth_url.to_string();
 
-    return Ok(
         redirect::temporary(warp::http::Uri::from_maybe_shared(auth_url_string).unwrap())
-            .into_response(),
-    );
+            .into_response()
 }
 
-fn get_token(form_data: HashMap<String, String>, _: String) -> impl Reply {
+fn get_token(form_data: HashMap<String, String>) -> impl Reply {
     let mut post_data = vec![
         ("client_id", "TWITCH_ID".to_string()),
         ("client_secret", TWITCH_SECRET.to_string()),
@@ -177,9 +173,9 @@ fn get_token(form_data: HashMap<String, String>, _: String) -> impl Reply {
 
     let rep = warp::reply::json(&data);
     if data.contains_key("error") {
-        return warp::reply::with_status(rep, StatusCode::INTERNAL_SERVER_ERROR).into_response();
+        warp::reply::with_status(rep, StatusCode::INTERNAL_SERVER_ERROR).into_response()
     } else {
-        return warp::reply::with_status(rep, StatusCode::OK).into_response();
+        warp::reply::with_status(rep, StatusCode::OK).into_response()
     }
 
     /*
