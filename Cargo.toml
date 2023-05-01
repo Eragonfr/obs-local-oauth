@@ -1,0 +1,18 @@
+[package]
+name = "obs-oauth-bin"
+version = "0.1.0"
+authors = ["dennis <dennis@obsproject.com>", "Eragon"]
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.11", features = ["json"] }
+oauth2 = "4.3"
+warp = "0.3"
+
+serde = "1.0"
+serde_json = "1.0"
+
+[dependencies.elog]
+git = "https://git.eragon.re/Electrolyte/elog.git"
+version = "*"
