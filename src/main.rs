@@ -78,8 +78,8 @@ fn get_redirect() -> impl Reply {
 
     let auth_url_string: String = auth_url.to_string();
 
-        redirect::temporary(warp::http::Uri::from_maybe_shared(auth_url_string).unwrap())
-            .into_response()
+    redirect::temporary(warp::http::Uri::from_maybe_shared(auth_url_string).unwrap())
+        .into_response()
 }
 
 fn get_token(form_data: HashMap<String, String>) -> impl Reply {

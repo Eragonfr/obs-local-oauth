@@ -1,6 +1,6 @@
 # OBS local oauth
 
-**WARNING ! This project does not build, for now.**
+**WARNING ! This project does not work, for now.**
 
 This is an adaptation from [OBS oauth Cloudflare Worker](https://github.com/obsproject/obs-oauth-cf)
 to be run on any linux machine.
