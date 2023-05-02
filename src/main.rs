@@ -27,7 +27,7 @@ lazy_static! {
     };
     static ref TWITCH_SECRET: String = match var("TWITCH_SECRET") {
         Ok(t) => t,
-        Err(_) => panic!("TWITCH_SECRET variable not found in current env."),
+        Err(_) => panic!("TWITCH_SECRET variable not found in current env."),
     };
     static ref TWITCH_REDIRECT_URL: String = match var("TWITCH_REDIRECT_URL") {
         Ok(t) => t,
